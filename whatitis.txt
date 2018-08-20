@@ -1,0 +1,12 @@
+This code uses the epoll tutorial provided on the website.
+Compilation on terminal as: g++ server.cpp -o server.out
+Uses the client file provided on the website client.c
+Compilation on terminal as: gcc client.c -o client.out
+Key and value are stored in a map<long long, long long>
+Server and each client to be run on a different terminal window.
+Client can put commands as:
+put *key* *value*
+get *key*
+del *key*
+Bye
+
