@@ -1,0 +1,92 @@
+Programming Assignment 2: Understanding TCP
+Back to CS 224M home page
+Goal of the assignment
+
+In this assignment, we will understand the various mechanisms of TCP using simulations. You will run simulations of TCP transfers in the ns-3 network simulator. You will use the output of the simulations to answer various questions about TCP behavior.
+Running simulations
+
+We will work with the ns-3 network simulator. If you have not used a network simulator before, please take some time to familiarize yourself with the concept of a network simulator.
+
+First, download and install a stable release of the simulator on your machine. We have tested the assignment scripts with the latest version 3.26 of ns-3. For the purpose of this assignment, it is enough if you follow the basic tutorial on the ns-3 documentation page.
+
+We have provided you with the simulator script to use in this assignment: tcp-example.cc. Once you have downloaded and built the simulator, you can place this script in any location, say in the scratch folder or the examples folder, and then run the script as follows.
+
+./waf --run scratch/tcp-example
+
+The "tcp-example.cc" simulaton script is fairly straightforward, especially if you have looked at the examples in the ns-3 tutorial. It simulates a single link between two nodes (say, node0 and node1). Data is transferred over TCP on the link. If you look at the first few lines in the main function in the script, you will see the following few lines.
+
+  std::string bandwidth = "5Mbps";
+  std::string delay = "5ms";
+  double error_rate = 0.000001;
+  int queuesize = 10; //packets
+  int simulation_time = 10; //seconds
+
+The above code configures the following parameters. You can change these values as needed in the exercises below.
+
+    Link bandwidth between the two nodes. Default is 5 Mbps.
+    One way delay of the link. Default is 5 milliseconds.
+    Loss rate of packets on the link. Default is 0.000001. This covers losses other than those that occur due to buffer drops at node0.
+    Queue size of the buffer at node 0. Default is 10 packets.
+    Simulation time. Default is 10 seconds. 
+
+We use the TCP NewReno variant but you can use anything else as well. Upon running successfully, the above script produces the following output files.
+
+    "tcp-example-0-0.pcap" and "tcp-example-1-0.pcap", which are the pcap logs collected at nodes 0 and 1 respectively.
+    The congestion window of the TCP sender at node 0 is recorded in "tcp-example.cwnd".
+    "tcp-example.tr" is the ns-3 ASCII trace file containing all simulator events. The ns-3 documentation should explain this trace file in detail. The parts of interest for us are mainly the entries corresponding to a packet getting enqueued and dequeued at the queue of node 0. For example, the enqueue and dequeue entries in the queue of node0 for packet with sequence number 0 (SYN) at time "1" are as follows.
+
+    + 1 /NodeList/0/DeviceList/0/$ns3::PointToPointNetDevice/TxQueue/Enqueue ns3::PppHeader (Point-to-Point Protocol: IP (0x0021)) ns3::Ipv4Header (tos 0x0 DSCP Default ECN Not-ECT ttl 64 id 0 protocol 6 offset (bytes) 0 flags [none] length: 40 10.1.1.1 > 10.1.1.2) ns3::TcpHeader (49153 > 8080 [ SYN ] Seq=0 Ack=0 Win=65535)
+    - 1 /NodeList/0/DeviceList/0/$ns3::PointToPointNetDevice/TxQueue/Dequeue ns3::PppHeader (Point-to-Point Protocol: IP (0x0021)) ns3::Ipv4Header (tos 0x0 DSCP Default ECN Not-ECT ttl 64 id 0 protocol 6 offset (bytes) 0 flags [none] length: 40 10.1.1.1 > 10.1.1.2) ns3::TcpHeader (49153 > 8080 [ SYN ] Seq=0 Ack=0 Win=65535)
+
+Analyzing simulation results
+
+For your assignment, you will need to run simulations by varying the parameters above, and analyze the output files above to answer several questions about TCP. To understand what is happening with TCP in the simulation, it will be helpful to look at the following metrics.
+
+    Average TCP throughput at the receiver. The average throughput can be easily obtained by opening the receiver's pcap file in wireshark, and checking out the "Summary" tab or "Conversations" tab under the "Statistics" menu. (For calculation of average throughput, counting the bytes in TCP headers is optional - either way shouldn't matter much.)
+
+    Alternately, you can write a script to analyze the pcap file and calculate throughput. You can use "tshark -r" or "tcpdump -r" with several useful options to read the pcap files and process them. Please read up online about the tshark tool and its various options. For example, if you run tshark with the "-T fields" option, you can extract only a subset of fields from the pcap file to the terminal output, which you may then redirect to a smaller file that is easy to parse. For example, the following command will read the pcap file "tcp-example-0-0.pcap" and extract the timestamp, source and destination IP and port numbers, and sequence numbers.
+
+    $tshark -r tcp-example-0-0.pcap -T fields -e frame.time_epoch -e ip.src -e ip.dst -e tcp.port -e tcp.seq -e tcp.len -e tcp.ack
+
+    You can use several such simple tshark commands to easily extract only the information you care about from the pcap files. After you extract some information from the pcap file, you may use sed/awk/perl/python or even C++/Java to extract the various columns in the output, and perform any manipulations you want to do with them (e.g., add up the packet length received column and divide by total time to get throughput).
+    Evolution of the sender's cwnd over time. The cwnd trace file, which is generated as part of the simulation output, is written whenever cwnd changes. So simply plotting all the values in the cwnd trace file is enough for you to visualize what happened to the cwnd during the simulation. You may use any graph plotting software. For example, here is a simple gnuplot script, say, "example.gp", that generates a cwnd vs time plot.
+
+    set term postscript eps color 
+    set output 'cwnd.eps'
+    set ylabel 'cwnd'
+    set xlabel 'time'
+    plot 'tcp-example.cwnd' using 1:2
+
+    Now, I store the 5 lines above in a file called "example.gp", and I store the cwnd trace file generated by ns-3 called "tcp-example.cwnd" also in the same folder. Then I run "gnuplot example.gp" at the commandline. Then the graph "cwnd.eps" will be created in the same folder showing the cwnd vs time plot.
+
+    In general, once you generate the output data to plot, a simple variant of a gnuplot script like this will let you generate any graph you want.
+
+    In addition to the metrics above, a little bit of extra work will get you access to the following metrics as well. (As a first cut, you can skip computing the two metrics below.)
+    Queue length (occupancy) at the sender's buffer as a function of time. To understand the behavior of the TCP bottleneck router's buffer (which is the sender's queue in our case, because there is only one link), it will be helpful to plot the queue length (occupancy) as a function of time. For the queue length graph, you will have one point on the graph for every change in the queue length, that is, for every time a packet gets enqueued or dequeued. For example, if a packet gets added to the queue at time "t", taking the number of packets in the queue to "n", then you will have a point on the graph corresponding to "t" on the x-axis and "n" on the y-axis. You must analyze the "tcp-example.tr" file generated after the simulation, to obtain information on enqueue and dequeue events. You may process this trace file using a simple bash/perl/python script. Once you generate a text file with time and queue length columns, you can easily plot it with gnuplot to visualize how the queue length varied during the simulation.
+    Queueing delay (wait time in queue) at the sender's buffer as a function of time. Another metric of interest is the amount of time packets spent in the queue (queueing delay or waiting time) as a function of time. For this qeuueing delay graph, you will have one point on the graph for every queueing delay sample you get, which will be every time a packet is dequeued. That is, if a packet is dequeued at time "t" after waiting for time "w" from the time it was enqueued, then you will have a point on the graph corresponding to "t" on the x-axis and "w" on the y-axis. Much like the queue length, the queue delay can also be obtained from the trace file. 
+
+Exercises
+
+Once you have figured out how to run simulations, and how to analyze the output from the simulations, let's proceed to answer some interesting questions about TCP behavior. Record your observations from each of these simulations in a report that you will turn in at the end of this programming assignment. Please be clear and concise in your answers. Include simulation data (graphs/numbers/tables) in your report as needed to substantiate your answers.
+
+    Run the simulation with the default parameters and answer the following questions.
+        What is the average throughput of the TCP transfer? What is the maximum expected value of throughput? Is the achieved throughput approximately equal to the maximum expected value? If it is not, explain the reason for the difference.
+        How many times did the TCP algorithm reduce the cwnd, and why? 
+    Start with the default config. Change the link bandwidth to 50Mbps (from 5 Mbps).
+        What is the average throughput of the TCP transfer? What is the maximum expected value of throughput? Is the achieved throughput approximately equal to the maximum expected value? If it is not, explain the reason for the difference.
+        What other parameters in the simulation (amongst the ones exposed to you above) can you change to make sure that the throughput is close to the maximum expected value, for this link bandwidth? (Try out a few different simulations, and see what gets you close to the maximum.) 
+    Start with the default config. Change the link delay to 50 ms.
+        What is the average throughput of the TCP transfer? What is the maximum expected value of throughput? Is the achieved throughput approximately equal to the maximum expected value? If it is not, explain the reason for the difference.
+        What other parameters (amongst the ones exposed to you above) can you change to make sure that the throughput is close to the maximum expected value, for this link delay? (Try out a few different simulations, and see what gets you close to the maximum.) 
+    Start with the default config. Change the queue size to 1000 packets.
+        Compare the TCP throughput in both cases and explain what you see. Further, explain what happens to the queue occupancy, queueing delay, and cwnd in both cases. (If you cannot write scripts to get the queueing delay and queue occupancy, make an educated guess.)
+        What is the optimum queue size that must be used in this simulation? Justify your answer. 
+
+Submission instructions
+
+You must submit a tar gzipped file of your submission on Moodle. The name of the file must be your roll number. The submission tarball must contain a report (in PDF or text format), providing your answers to the exercises above. You must also submit any scripts/code you wrote to solve the assignment.
+
+Your submission will be graded by reading your report, and by having you run simulations during a demo/viva. You will use your submitted files to run simulations and interpret your results during the viva.
+Good luck!
+Back to CS 224M home page
+
